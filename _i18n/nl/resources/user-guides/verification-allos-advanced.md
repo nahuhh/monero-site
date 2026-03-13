@@ -166,7 +166,7 @@ Op Linux kun je de opdrachtregelversie downloaden door de volgende opdracht
 op te geven:
 
 ```
-wget -O monero-linux-x64-v0.15.0.1.tar.bz2 https://downloads.getmonero.org/cli/linux64
+wget --content-disposition https://downloads.getmonero.org/cli/linux64
 ```
 
 ### Binary Verification on Linux or Mac

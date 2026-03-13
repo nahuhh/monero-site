@@ -393,9 +393,9 @@ msgstr "Для Linux можно загрузить инструменты ком
 #. type: Fenced code block
 #: _i18n/en/resources/user-guides/verification-allos-advanced.md:166
 #, no-wrap
-msgid "wget -O monero-linux-x64-v0.15.0.1.tar.bz2 https://downloads.getmonero.org/cli/linux64\n"
+msgid "wget --content-disposition https://downloads.getmonero.org/cli/linux64\n"
 msgstr ""
-"wget -O monero-linux-x64-v0.15.0.1.tar.bz2 https://downloads.getmonero.org/"
+"wget --content-disposition https://downloads.getmonero.org/"
 "cli/linux64\n"
 
 #
