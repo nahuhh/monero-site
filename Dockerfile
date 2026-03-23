@@ -16,12 +16,13 @@ RUN pnpm install --frozen-lockfile
 
 # Prepare source
 FROM base AS src
-ARG PREPARE_CI_ARGS
-COPY --from=deps /app/node_modules ./node_modules
+ARG PREPARE_BUILD_ARGS
+COPY --from=deps-dev /app/node_modules ./node_modules
 COPY . .
-RUN if [ -n "$PREPARE_CI_ARGS" ]; then \
-      CI=true pnpm prepare-ci $PREPARE_CI_ARGS; \
+RUN if [ -n "$PREPARE_BUILD_ARGS" ]; then \
+      CI=true pnpm prepare-ci $PREPARE_BUILD_ARGS; \
     fi
+COPY --from=deps /app/node_modules ./node_modules
 
 # Build the site (static)
 FROM src AS build
