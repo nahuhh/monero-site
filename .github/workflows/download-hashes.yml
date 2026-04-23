@@ -262,38 +262,36 @@ jobs:
 
           # Download torrents from CDN (replace with the monero URLs)
           CDN_CLI_URL="https://github.com/plowsof/monero-torrent/releases/download/${version_cli}/monero-${version_cli}.torrent"
-          CDN_GUI_URL="https://github.com/plowsof/monero-torrent/releases/download/${version_gui}/monero-gui-${version_gui}.torrent"
+          CDN_GUI_URL="https://github.com/plowsof/monero-torrent/releases/download/${version_cli}/monero-gui-${version_gui}.torrent"
 
-          CDN_AVAILABLE=true
           if ! wget --spider -q "$CDN_CLI_URL" || ! wget --spider -q "$CDN_GUI_URL"; then
-            echo "::warning title=CDN-Torrents::CDN torrent files not available yet, skipping comparison"
-            CDN_AVAILABLE=false
+            echo "::warning title=CDN-Torrents::CDN torrent files not available yet, unable to verify"
+            exit 1
           fi
 
-          if [ "$CDN_AVAILABLE" = true ]; then
-            wget -q "$CDN_CLI_URL" -O "monero-${version_cli}.torrent"
-            wget -q "$CDN_GUI_URL" -O "monero-gui-${version_gui}.torrent"
+          wget -q "$CDN_CLI_URL" -O "monero-${version_cli}.torrent"
+          wget -q "$CDN_GUI_URL" -O "monero-gui-${version_gui}.torrent"
 
-            CDN_MAGNET_LINK_CLI="$(transmission-show -m "monero-${version_cli}.torrent")"
-            CDN_MAGNET_LINK_GUI="$(transmission-show -m "monero-gui-${version_gui}.torrent")"
+          CDN_MAGNET_LINK_CLI="$(transmission-show -m "monero-${version_cli}.torrent")"
+          CDN_MAGNET_LINK_GUI="$(transmission-show -m "monero-gui-${version_gui}.torrent")"
 
-            # Compare local vs CDN magnets
-            if [ "$MAGNET_LINK_CLI" != "$CDN_MAGNET_LINK_CLI" ]; then
-              echo "CLI torrent magnet mismatch between local build and CDN version" >&2
-              echo "Local: $MAGNET_LINK_CLI" >&2
-              echo "CDN : $CDN_MAGNET_LINK_CLI" >&2
-              exit 1
-            fi
-
-            if [ "$MAGNET_LINK_GUI" != "$CDN_MAGNET_LINK_GUI" ]; then
-              echo "GUI torrent magnet mismatch between local build and CDN version" >&2
-              echo "Local: $MAGNET_LINK_GUI" >&2
-              echo "CDN : $CDN_MAGNET_LINK_GUI" >&2
-              exit 1
-            fi
-
-            echo "Torrent files and magnet links match local build and CDN."
+          # Compare local vs CDN magnets
+          if [ "$MAGNET_LINK_CLI" != "$CDN_MAGNET_LINK_CLI" ]; then
+            echo "CLI torrent magnet mismatch between local build and CDN version" >&2
+            echo "Local: $MAGNET_LINK_CLI" >&2
+            echo "CDN : $CDN_MAGNET_LINK_CLI" >&2
+            exit 1
           fi
+
+          if [ "$MAGNET_LINK_GUI" != "$CDN_MAGNET_LINK_GUI" ]; then
+            echo "GUI torrent magnet mismatch between local build and CDN version" >&2
+            echo "Local: $MAGNET_LINK_GUI" >&2
+            echo "CDN : $CDN_MAGNET_LINK_GUI" >&2
+            exit 1
+          fi
+
+          echo "Torrent files and magnet links match local build and CDN."
+
           echo "magnet_gui=$MAGNET_LINK_GUI" >> $GITHUB_OUTPUT
           echo "magnet_cli=$MAGNET_LINK_CLI" >> $GITHUB_OUTPUT
 
@@ -322,7 +320,7 @@ jobs:
     needs: validate-download-hashes
     name: "Update static data with new download info"
     runs-on: ubuntu-22.04
-    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/beta'
     permissions:
       contents: write
       pull-requests: write
@@ -333,7 +331,7 @@ jobs:
         with:
           node-version: "22"
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5
 
       - name: Install dependencies
         run: |
@@ -409,7 +407,7 @@ jobs:
       - name: Create pull request
         env:
           GH_TOKEN: ${{ github.token }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          BASE_BRANCH: beta
         run: |
           set -euo pipefail
 
@@ -421,17 +419,10 @@ jobs:
 
           PREFIX="actions/core-downloads-"
 
-          # List existing core.json update PRs
-          prs=$(gh pr list \
-            --state open \
-            --base "$DEFAULT_BRANCH" \
-            --json number,headRefName \
-            --jq '.[] | select(.headRefName | startswith("'"$PREFIX"'")) | .number')
-
           version_gui="${{ needs.validate-download-hashes.outputs.version_gui }}"
           version_cli="${{ needs.validate-download-hashes.outputs.version_cli }}"
 
-          BRANCH_NAME="${PREFIX}${version_cli}-$(date +%Y%m%d%H%M%S)"
+          BRANCH_NAME="${PREFIX}CLI_${version_cli}-GUI_${version_gui}"
 
           git config user.name 'github-actions[bot]'
           git config user.email 'github-actions[bot]@users.noreply.github.com'
@@ -442,15 +433,7 @@ jobs:
           git push --set-upstream origin "$BRANCH_NAME"
 
           gh pr create \
-            --base "$DEFAULT_BRANCH" \
+            --base "$BASE_BRANCH" \
             --head "$BRANCH_NAME" \
-            --title "Update Core download information (CLI ${version_cli}, GUI ${version_gui})" \
+            --title "downloads: update core.json download information (CLI ${version_cli}, GUI ${version_gui})" \
             --body "This PR was automatically generated by the Download Hashes workflow to update **src/data/downloads/core.json** based on the latest downloads/hashes.txt."
-
-          # Close outdated PRs
-          if [ -n "$prs" ]; then
-            for pr in $prs; do
-              echo "Closing existing PR #$pr"
-              gh pr close "$pr" --comment "Closed by Actions: superseded by a newer PR."
-            done
-          fi
